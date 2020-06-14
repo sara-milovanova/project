@@ -1,0 +1,334 @@
+---
+title: "***Analysis of risk factors and their correlation for predicting heart disease***"
+author: "Sara Milovanova"
+date: "14/6/2020"
+output: 
+  html_document:
+    df_print: kable
+    highlight: monochrome
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+bibliography: ./bibliography.bibtex
+---
+
+# **Introduction**
+
+  <font color="steelblue">Cardiovascular disease or heart disease</font> is a term referring to several different diseases, all occurring in the heart and blood vessels. They are a very complex and serious issue especially because globally, from 1990 to 2017, there have been 17.8 million people who have died and have been affected by this type of disease. Heart diseases have been difficult to identify and predict because there are numerous risk factors, all affecting one another. In fact, the leading risk factors for premature death on a global level are the exact same ones as those of heart diseases like for example, high blood pressure, smoking, obesity, high blood sugar, and environmental risk factors. If these factors could be considered, compared, and analyzed by working with data from healthcare, the information given could be used for something that could help predict and make decisions for one of the most important areas of research in the healthcare industry. 
+For this purpose, <font color="steelblue">The Cleveland Heart Disease</font> data set from the UCI Repository is taken and it is actually one of the most used, which emphasizes its importance and the largeness of the issue.
+
+# **Presentation and Description of the Problem**
+
+  The risk factors, known to lead to developing cardiovascular disease, if they are considered before any symptoms of the disease, can be used by health workers to predict and select individuals which are at a higher risk and if it is necessary, send them to the appropriate treatment. By treating these people earlier, before they develop any symptoms, it would become easier and more effective to prevent unfortunate events later. Several risk factors have been suggested by the World Health Organization, considering them as a way for prediction.
+
+First, loading all of the libraries needed for the analysis:
+```{r setup, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning =F)
+library(tidyverse)
+library(Hmisc)
+library(mlr)
+library(ggplot2)
+library(patchwork)
+library(RColorBrewer)
+library(GGally)
+library(DT)
+```
+
+And next, loading the data:
+
+```{r heart}
+heart<-read.csv(file="./heart.csv") 
+colnames(heart)<-c("Age", "Sex","ChestPainType", "RestingBloodPressure","Cholesterol","FastingBloodSugar", "RestingECG", "MaxHeartRate",
+       "ExerciseInducedAngina", "STDepression", "STSlope", "NumberMajorVessels", "Thalassemia", "Disease")
+```
+
+
+# **Presentation of the data**
+
+  As it can be noticed, the *Cleveland heart disease* is a smaller data set, however, it provides valuable information and enough data to analyze and consider the development of future heart disease.
+
+Table 1. Cleveland Heart Disease data set
+```{r results='asis', message=FALSE, echo=FALSE}
+datatable(heart, rownames = FALSE, filter="top", options = list(pageLength = 5, scrollX=T))
+```
+
+The data set consists of 303 observations, hence 303 people were examined, with 14 variables in the above table. They indicate the parameters used to demonstrate the factors connected with the development of the cardiovascular disease. It would be more simple to clarify the names of these variables:
+
+```{r message=FALSE}
+colnames(heart)
+```
+
+* **Age**
+  + the age of the individual
+  
+* **Sex**
+  + 1 = male
+  + 0 = female
+  
+* **ChestPainType**
+  + this variable shows the 4 types of chest pain such that:
+    - 0 = typical angina
+    - 1 = atypical angina
+    - 2 = non — anginal pain
+    - 3 = asymptotic
+    
+* **RestingBloodPressure** 
+  + an individual's resting blood pressure measured in millimeters of mercury (mmHg)
+  
+* **Cholesterol**
+  + measuring the serum cholesterol (amount of HDL, LDL cholesterol, triglycerides)  in mg/dl
+  
+* **FastingBloodSugar**
+  + displays **1** if the fasting blood sugar is > 120 mg/dl and **0** if < 120 mg/dl
+  
+* **RestingECG**
+  + shows resting electrocardiographic results with values:
+    - 0 = normal
+    - 1 = ST-T wave abnormality
+    - 2 = left ventricular hypertrophy
+  
+* **MaxHeartRate**
+
+* **ExerciseInducedAngina** 
+  + values are:
+    - 1 = yes(angina caused by exercise)
+    - 0 = no(if it is false)
+    
+* **STDepression**
+  + ST depression on ECG, induced by exercise relative to rest
+  
+* **STSlope** 
+  + a treadmill ECG stress test is performed such that the slope is:
+    - 1 = upsloping
+    - 2 = flat
+    - 3 = downsloping
+    
+* **NumberMajorVessels** 
+  + the number of major vessels
+  + numbers are between 0-3
+  
+* **Thalassemia**
+  + shows thalassemia, with values:
+    - 1 = normal 
+    - 2 = fixed defect
+    - 3 = reversable defect
+    
+* **Disease**
+  + shows the diagnosis - if the individual has heart disease:
+    - 1 = yes
+    - 0 = no
+
+
+Using the function `describe()` from the package `Hmisc`, insights from the data set are shown: 
+```{r results='asis', message=FALSE, echo=FALSE}
+describe(heart)%>%html()
+```
+
+```{r include=FALSE, message=FALSE}
+heart%>%filter(Sex==1)%>%nrow()
+heart%>%filter(Sex==0)%>%nrow()
+heart%>%filter(Disease==1)%>%nrow()
+heart%>%filter(Disease==0)%>%nrow()
+```
+
+* Some conclusions from this demonstration:
+  + The number of males in this data set is 207 and the number of females is 96.
+  + The number of individuals with the disease is 165 and the rest (138) do not have the disease
+  + 48.51% of the total number of individuals had a normal resting ECG and 54.45% of the total had a disease, hence this similarity in the percentages shows a probable link between these variables (approx. 45.54% of the total participants do not have the disease)
+
+Before the data analysis and processing, certain features and possible anomalies are checked using the `summarizeColumns` function from the package `mlr`:
+```{r echo=F,message=F}
+summarizeColumns(heart)%>%knitr::kable( caption =  'Table 2. Summary before Data Analysis')
+```
+
+From here it can be noticed that there are no NA values inside the data set. 
+
+# **Exploratory Data Analysis and Visualization**
+
+  Before starting the more detailed analysis of the data set, it is important to state the aim of this analysis - to explore and find which factors, as well as which correlation between them, could best predict the risk of an individual having a heart disease. All of the variables could be divided into two types - numerical and categorical, depending on which kind of values it deals with. From all of the variables (risk factors) included, the analysis would be focused on those considered to influence the most - **age**, **sex**, **heredity**, as well as the **number of major vessels**. The last one is emphasized because the heart disease as a term is defined as the interruption of the blood flow to the heart by the build-up of fatty substances in the coronary arteries which would suggest that a higher number of the major vessels would mean a lower risk of heart disease.
+
+## *Age*
+  
+  Age is assumed to be a factor that plays a role in the causation of heart disease since it takes along many other factors with itself as well. It is a numerical variable and overall, the median age is 55 (Table 3). 
+
+```{r echo=F}
+summarizeColumns(heart)%>%filter(name=="Age")%>%knitr::kable( caption =  'Table 3. Statistics for the ages of patients')
+```
+
+This age can be compared with the median values when the age variable is grouped into individuals that have and those that do not have heart disease. This is important because the median age for people with heart disease is 52 (Table 4), and the median of those who do not have the disease is 58 (Table 5). This contradicts the assumption that people in higher age groups are more at risk of a heart disease, which could be due to the fact that the data from participants included in this data set is limited and does not show the whole image. However, it should not be excluded that there is a possibility that younger individuals had more problems and risk factors present.
+
+```{r echo=F}
+Dis<-heart%>%filter(Disease==1)
+summarizeColumns(Dis)%>%filter(name=="Age")%>%knitr::kable( caption =  'Table 4. Statistics for the ages of patients with heart disease')
+Not<-heart%>%filter(Disease==0)
+summarizeColumns(Not)%>%filter(name=="Age")%>%knitr::kable( caption =  'Table 5. Statistics for the ages of patients without the disease')
+
+```
+
+
+```{r echo=F}
+
+ageAll<-ggplot(data=heart)+geom_histogram(mapping=aes(x=Age, fill=..x..), binwidth = 0.5) +scale_fill_gradient("Legend",low = "green", high = "red")+labs(title="Age of all patients", caption = "Chart 1.")+geom_vline(xintercept = 55, linetype="dashed")
+
+heartDis<-heart%>%filter(Disease==1)
+
+ageD<-ggplot(heartDis)+geom_histogram(mapping=aes(x=Age,fill=..x..), binwidth=.5) +scale_fill_gradient("Legend",low = "green", high = "red")+labs(title="Age of patients with a heart disease", caption = "Chart 2.")+geom_vline(xintercept = 52, linetype="dashed")
+
+heartNot<-heart%>%filter(Disease==0)
+
+ageN<-ggplot(heartNot)+geom_histogram(mapping=aes(x=Age,fill=..x..), binwidth=.5) +scale_fill_gradient("Legend",low = "green", high = "red")+labs(title="Age of patients without the disease", caption = "Chart 3.")+geom_vline(xintercept = 58, linetype="dashed")
+
+ageAll/
+  (ageD | ageN)
+
+
+```
+
+
+It is quite odd that the data suggests that the higher the age group, the lower risk of heart disease. Since this is the opposite of what research in this field has shown, other factors are analyzed. Additionally, because this was one of the obvious risk factors for the disease and it has shown to be not so valid, the next factor examined would be the one most connected with heart disease.
+
+## *Number of Major Vessels*
+
+  This variable shows the number of major vessels colored by flouroscopy and it is assumed to be one of the main indicators for heart disease. This is true because the more blood vessels there are, the more flow of blood to the heart and less potential for developing heart disease. In order to see the pattern of this variable, a chart is constructed.
+
+```{r echo =F}
+heart%>%select(NumberMajorVessels,Disease)%>%group_by(NumberMajorVessels)%>%filter(NumberMajorVessels==0:3)%>%mutate(AvgDisease=mean(Disease))%>%ggplot()+geom_line(mapping=aes(x=NumberMajorVessels, y=AvgDisease), colour="blue", size=1)+geom_point(aes(x=NumberMajorVessels, y=AvgDisease))+theme_light()+labs(title = "Number of major vessels to probability of having heart disease", caption = "Chart 4.")
+```
+
+The above trendline indicates that as the number of major blood vessels increases, the chances or the probability of heart disease decreases.
+
+## *Correlation between Age, Sex and Disease variables*
+
+  Factors such as these, *Age* and *Sex*, together with ethnicity and family history, for example, are risk factors that could lead to the disease and they are non-modifiable factors. That means that they cannot be changed, but the chances of developing heart disease could be decreased by healthy habits (not smoking, physical activity, balanced bodyweight, etc.). However, if the focus is on the relationship between age and sex of the individual, ongoing research suggests that at the moment it has been shown that younger men have a higher probability of developing the disease than women the same age. Now, this is examined with the data provided by these variables in the data set.
+
+```{r echo =F}
+heart%>%select(Age,Sex,Disease)%>%group_by(Age)%>%mutate(AvgDisease=mean(Disease))%>%ggplot()+geom_jitter(mapping=aes(x=Age, y=AvgDisease))+facet_wrap(.~Sex)+geom_density_2d(aes(x=Age, y=AvgDisease))+labs(title="Age and pattern for the Disease compared for both sexes", caption = "Chart 5.")
+```
+
+Both plots here show that female individuals (denoted as 0 in the plot) have distribution by age which is spread throughout the entire axis, whereas in males (denoted as 1), the points are more gathered and centered and the density is generally focused on values above a probability of 0.25. There are certain anomalies in the plot for the females, such as values for women with the disease on the right of the x-axis. This anomaly is not present in the plot for the males.  But, overall, it follows that the probability of developing the disease is higher in males than in females. Although this is true, there are still other factors that are involved and responsible for the disease. They would also show a more precise prediction for the development of heart disease since the sex and age of the individual are more general factors.
+
+## *Resting ECG*
+
+  The assumption made earlier, that **normal resting ECG** is associated with individuals that don't have heart disease, can be tested using a more in-depth analysis. The results we have from the data set are the following:
+
+```{r echo=F}
+ALL<-heart%>%select(RestingECG, Disease)%>%ggplot()+geom_bar(mapping=aes(x=RestingECG), fill="steelblue")+labs(title="Resting ECG of all patients", caption="Chart 6.")+theme_bw()
+
+heartDis<-heart%>%filter(Disease==1)
+
+DIS<-heartDis%>%select(RestingECG, Disease)%>%ggplot()+geom_bar(mapping=aes(x=RestingECG), fill="steelblue")+labs(title="Resting ECG-with heart disease", caption="Chart 7.")+theme_bw()
+
+heartNot<-heart%>%filter(Disease==0)
+
+NOT<-heartNot%>%select(RestingECG, Disease)%>%ggplot()+geom_bar(mapping=aes(x=RestingECG), fill="steelblue")+labs(title="Resting ECG-without heart disease", caption="Chart 8.")+theme_bw()
+
+
+ALL/
+  (DIS | NOT) 
+
+```
+
+The first chart, showing the resting ECG of all individuals, indicates that there is a balance and almost an equal division between the people with normal electrocardiographic results and those with either ST-T wave abnormality (value 1) or ventricular hypertrophy (value 2). Comparing charts 7. and 8. such that the first shows individuals that have the disease, it can be noticed that a lower percentage of them have a normal ECG result, whereas those with no disease, the chart on the right, have a lower percentage in abnormal results. Thus, this suggests that the resting ECG as a variable and factor in this data set can be used as a good predictor of possible heart disease.
+
+## *Correlation between Disease and other variables for the prediction of heart disease*
+
+  The following correlation plot made with the function `ggcorr` from the `GGally` package allows to visualize which variables have a positive or negative correlation with other variables. The correlation coefficient of some variable with another is given by the color of the cell. If the values are closer to 1 or -1, the correlation between them is stronger, hence they should be related in some way.
+```{r echo=FALSE}
+ggcorr(heart, label=T, label_alpha = T)+labs(title="Correlation plot", caption="Chart 9.")
+```
+
+There are only a few variables that have a positive correlation with the disease variable, but the **ChestPainType** variable is considered here since it has the simplest values to compare and analyze in order to give results that are going to be as accurate as possible.
+
+```{r echo=F}
+summarizeColumns(heart)%>%filter(name=="ChestPainType")%>%knitr::kable( caption =  'Table 6. Statistics for the ChestPainType variable')
+```
+
+In the following tables (7., 8., 9., 10.), it is shown the comparison of the two variables **ChestPainType** and **Disease** and how they are related to each other. It is separated into four age groups based on the patterns they showed to have.
+
+:::::: {.columns style="display: flex;"}
+
+::: {.column width="50%"}
+```{r echo=F}
+heart%>%filter(Age %in% 29:44)%>%select(Age,ChestPainType,Disease)%>%slice_sample(prop = 0.15)%>%knitr::kable( caption =  'Table 7. Comparison for the 29-44 age range')
+```
+:::
+::: {.column width="50%"}
+```{r echo=F}
+heart%>%filter(Age %in% 45:50)%>%select(Age,ChestPainType,Disease)%>%slice_sample(prop = 0.23)%>%knitr::kable( caption =  'Table 8. Comparison for the 45-50 age range')
+```
+:::
+
+::::::
+
+:::::: {.columns style="display: flex;"}
+
+::: {.column width="50%"}
+```{r echo=F}
+heart%>%filter(Age %in% 51:60)%>%select(Age,ChestPainType,Disease)%>%slice_sample(prop = 0.065)%>%knitr::kable( caption =  'Table 9. Comparison for the 51-60 age range')
+```
+:::
+::: {.column width="50%"}
+```{r echo=F}
+heart%>%filter(Age %in% 61:77)%>%select(Age,ChestPainType,Disease)%>%slice_sample(prop = 0.11)%>%knitr::kable( caption =  'Table 10. Comparison for the 61-77 age range')
+```
+:::
+
+::::::
+
+Despite some exceptions which occur throughout the rows when we compare ChestPainType and the Disease variable, most of the individuals and cases show that the variables are related in some way.
+
+```{r echo=FALSE}
+ggplot(heart)+geom_point(aes(x=Age, y=ChestPainType, colour=Disease))+labs(title="Correlation between Age and ChestPainType for the presence of the disease", caption="Chart 10.")
+```
+
+The plot above shows how approximately all individuals without the disease, have a value for ChestPainType of 0. In the rest of this variable's values, there exist individuals that do not have the disease despite having a value of 1, 2 or 3, although, it is important to emphasize that most of the patients that have the disease possess the values 1, 2 and 3 of the ChestPainType variable.
+
+```{r}
+heart<-heart%>%mutate(ID=row_number())
+predict<-function(x,y){
+  
+  if(x==0){
+    return(paste("The patient",y, "does not have a heart disease"))
+  }
+  else{
+    return(paste("The patient",y, "possibly has a heart disease"))
+  }
+}
+test<-heart%>%select(ChestPainType, ID)%>%slice_sample(prop=0.005)
+predict(test$ChestPainType,test$ID)
+```
+
+Using the user-defined function *predict*, generally, it gives a successful guess for the prediction of heart disease in a patient. Hence, it is next applied to all rows:
+
+```{r}
+predict<-function(x){
+  
+  if(x==0){
+    return(0)
+  }
+  else{
+    return(1)
+  }
+}
+vect<-Vectorize(predict)
+test<-heart%>%select(ChestPainType, ID)
+
+heart<-heart%>%mutate(Prediction=vect(ChestPainType))
+
+summarizeColumns(heart)%>%filter(name=="Disease" | name=="Prediction")%>%knitr::kable( caption =  'Table 11. Comparison of results in variables Disease and Prediction')
+```
+
+Comparing the mean values from each column, disease, and prediction, it can be observed that the difference between their values is of approximately 0.0165017. Hence, this shows to be a good estimation for the presence of heart disease in an individual.
+
+# **Conclusion**
+
+The exploration of the data in the *Cleveland Heart Disease* data set indicated that many factors could show the probability of whether a patient would develop or has heart disease. Some factors can give clear results such as the ChestPainType variable or others like the cholesterol level, the number of major blood vessels, and so on. Many variables like age as a factor surprisingly did not show a correlation with the development of the disease, but the advantage is that it allowed for assessing the data and the validity of the results. With this particular detailed analysis, the values from the factor ChestPainType showed to be the most promising, giving an accuracy of predicting whether an individual would have the disease by approx. 0.0165. Similar research with data mining is continuously done nowadays and there are constant efforts to improve the models for predicting and minimizing the consequences of this serious issue.
+
+---
+nocite: | 
+  @wickham2016r, @xie2018r, @AnalysisAndVisualizations, @heartdataset, @eda, @who, @prediction, @owidcausesofdeath, @riskfact, @ncbi, @woods_2017,@harvard, @sciencedirect, @health
+...
+
+# **References**
+
+
